@@ -120,7 +120,73 @@ extension Intersperse: Collection where Base: Collection {
     }
   }
 
-  // TODO: Implement index(_:offsetBy:limitedBy:)
+  public func index(
+    _ i: Index,
+    offsetBy n: Int,
+    limitedBy limit: Index
+  ) -> Index? {
+    if n >= 0 {
+      return limit >= i
+        ? offsetForward(i, by: n, limitedBy: limit)
+        : index(i, offsetBy: n)
+    } else {
+      return limit <= i
+        ? offsetBackward(i, by: -n, limitedBy: limit)
+        : index(i, offsetBy: n)
+    }
+  }
+  
+  private func offsetForward(
+    _ i: Index, by distance: Int, limitedBy limit: Index
+  ) -> Index? {
+    assert(distance >= 0)
+    assert(limit >= i)
+    
+    switch (i.representation, limit.representation, distance.isMultiple(of: 2)) {
+    case let (.element(i), .element(limit), true),
+         let (.separator(next: i), .element(limit), false):
+      return base.index(i, offsetBy: distance / 2, limitedBy: limit)
+        .map { .element($0) }
+      
+    case let (.element(i), .element(limit), false),
+         let (.element(i), .separator(next: limit), false),
+         let (.separator(next: i), .element(limit), true),
+         let (.separator(next: i), .separator(next: limit), true):
+      return base.index(i, offsetBy: (distance + 1) / 2, limitedBy: limit)
+        .map { .separator(next: $0) }
+      
+    case let (.element(i), .separator(next: limit), true),
+         let (.separator(next: i), .separator(next: limit), false):
+      return base.index(i, offsetBy: distance / 2, limitedBy: limit)
+        .flatMap { $0 == limit ? nil : .element($0) }
+    }
+  }
+  
+  private func offsetBackward(
+    _ i: Index, by distance: Int, limitedBy limit: Index
+  ) -> Index? {
+    assert(distance >= 0)
+    assert(limit <= i)
+    
+    switch (i.representation, limit.representation, distance.isMultiple(of: 2)) {
+    case let (.element(i), .element(limit), true),
+         let (.element(i), .separator(next: limit), true),
+         let (.separator(next: i), .element(limit), false),
+         let (.separator(next: i), .separator(next: limit), false):
+      return base.index(i, offsetBy: -((distance + 1) / 2), limitedBy: limit)
+        .map { .element($0) }
+      
+    case let (.element(i), .separator(next: limit), false),
+         let (.separator(next: i), .separator(next: limit), true):
+      return base.index(i, offsetBy: -(distance / 2), limitedBy: limit)
+        .map { .separator(next: $0) }
+      
+    case let (.element(i), .element(limit), false),
+         let (.separator(next: i), .element(limit), true):
+      return base.index(i, offsetBy: -(distance / 2), limitedBy: limit)
+        .flatMap { $0 == limit ? nil : .separator(next: $0) }
+    }
+  }
 
   public func distance(from start: Index, to end: Index) -> Int {
     switch (start.representation, end.representation) {
